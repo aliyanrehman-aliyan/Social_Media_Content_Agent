@@ -1,20 +1,16 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Social Media Content Agent
 
-# Run and deploy your AI Studio app
+Vite/React workspace for generating and managing social media content across customer projects.
 
-This contains everything you need to run your app locally.
+The active Supabase schema is `ag_social_media_content`.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1C3Qrdksfk_zNh4kGJyEsUuO07xu6aveR
+## Commands
 
-## Run Locally
+```bash
+npm run dev
+npm run build
+```
 
-**Prerequisites:**  Node.js
+## Supabase
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Apply the migration in `supabase/migrations/20260611123000_create_ag_social_media_content_schema.sql`, deploy the `auto-generate-social-content` Edge Function, and configure Supabase secrets for OpenAI.

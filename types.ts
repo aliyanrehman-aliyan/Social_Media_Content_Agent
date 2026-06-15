@@ -1,58 +1,86 @@
-
-export type PostStatus = 'Draft' | 'Published' | 'Scheduled';
-export type PublishingMode = 'supabase_shared' | 'email_delivery';
+export type Platform = 'Instagram' | 'Facebook' | 'TikTok' | 'YouTube';
+export type SocialContentType =
+  | 'Caption'
+  | 'Image Post'
+  | 'Carousel'
+  | 'Reel Script'
+  | 'Story Idea'
+  | 'Hashtags'
+  | 'Caption Post'
+  | 'Link Post'
+  | 'Short Video Script'
+  | 'Hook'
+  | 'Scene Outline'
+  | 'Shorts Script'
+  | 'Video Title'
+  | 'Description'
+  | 'Thumbnail Prompt';
+export type SourceType =
+  | 'General Topic'
+  | 'Product / Service'
+  | 'Campaign'
+  | 'Event'
+  | 'Offer / Promotion'
+  | 'Website Content'
+  | 'Existing Post Idea'
+  | 'Custom Brief';
+export type ContentStatus = 'Draft' | 'Scheduled' | 'Published' | 'Failed';
+export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+export type PublishingMode = 'manual' | 'auto_publish';
 export type CategoryStatus = 'Active' | 'Hidden';
 
-export type BlockType = 'heading' | 'paragraph' | 'bullet_list' | 'image' | 'quote';
-
-export interface ContentBlock {
-  id: string;
-  type: BlockType;
-  content: string | string[];
-}
-
-export interface SEOData {
-  focusKeyword: string;
-  seoTitle: string;
-  metaDescription: string;
-}
-
-// Fixed missing export of Post interface
-export interface Post {
+export interface SocialContent {
   id: string;
   projectId: string;
   categoryId?: string;
   categoryIds?: string[];
   title: string;
-  titleAr?: string;
-  slug: string;
-  content: string;
-  excerpt: string;
-  excerptAr?: string;
-  status: PostStatus;
+  platform: Platform;
+  contentType: SocialContentType;
+  hook: string;
+  body: string;
+  cta: string;
+  hashtags: string[];
+  carouselOutline?: string[];
+  videoScript?: string;
+  sceneOutline?: string[];
+  creativeDirection?: string;
+  thumbnailPrompt?: string;
+  sourceType?: SourceType;
+  status: ContentStatus;
+  approvalStatus: ApprovalStatus;
   category: string;
   author: string;
   date: string;
-  publishAt?: string;
+  scheduledAt?: string;
   image: string;
-  seo?: SEOData;
-  blocksEn?: ContentBlock[];
-  blocksAr?: ContentBlock[];
+  imageProvider?: string;
+  imagePrompt?: string;
+  imageUrl?: string;
   tags?: string[];
 }
+
+export type Post = SocialContent;
 
 export interface Project {
   id: string;
   name: string;
+  businessName: string;
   websiteUrl: string;
-  niche: string;
+  industry: string;
+  targetAudience: string;
+  brandDescription: string;
   tone: string;
-  location: string;
-  category?: string;
-  categories?: string[]; 
-  tags?: string[];
-  createdAt: string;
+  language: string;
+  platforms: Platform[];
+  contentTypes: SocialContentType[];
+  sourceType: SourceType;
+  postingFrequency: string;
   publishingMode: PublishingMode;
+  location: string;
+  tags?: string[];
+  settingsMetadata?: Record<string, unknown>;
+  createdAt: string;
   apiBaseUrl?: string;
   apiKey?: string;
 }
@@ -79,4 +107,4 @@ export interface MediaAsset {
   usedInPosts: string[];
 }
 
-export type Tab = 'Projects' | 'Posts' | 'Categories' | 'CategoryDetail' | 'Calendar' | 'Editor' | 'Analytics' | 'Settings' | 'AutoGenerate';
+export type Tab = 'Projects' | 'Posts' | 'Calendar' | 'Editor' | 'Analytics' | 'Settings' | 'AutoGenerate';

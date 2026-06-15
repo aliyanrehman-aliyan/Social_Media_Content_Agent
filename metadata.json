@@ -1,5 +1,4 @@
 {
-  "name": "Long Form Content Agent",
-  "description": "A professional content operations workspace for managing long-form content projects with SEO, publishing workflows, calendars, and project-specific analytics.",
-  "requestFramePermissions": []
+  "name": "Social Media Content Agent",
+  "description": "A professional content operations workspace for generating, reviewing, saving, and preparing platform-ready social media content."
 }

@@ -25,8 +25,8 @@ const Auth: React.FC = () => {
           <div className="bg-white/20 p-4 rounded-3xl inline-block mb-6 backdrop-blur-sm">
             <Globe className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight mb-2">Blog Management System</h1>
-          <p className="text-indigo-100 font-medium">Dubai's Multi-Project Blog Manager</p>
+          <h1 className="text-3xl font-black tracking-tight mb-2">Social Media Content Agent</h1>
+          <p className="text-indigo-100 font-medium">Secure workspace for platform-ready content</p>
         </div>
         
         <form onSubmit={handleLogin} className="p-10 space-y-6">
@@ -44,7 +44,7 @@ const Auth: React.FC = () => {
                 type="email" 
                 required 
                 className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all text-black placeholder:text-slate-400"
-                placeholder="admin@pointx.tech"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -71,7 +71,7 @@ const Auth: React.FC = () => {
             disabled={loading}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In to Dashboard'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
           </button>
           
           <div className="pt-4 text-center">

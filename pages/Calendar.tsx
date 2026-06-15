@@ -5,12 +5,9 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Clock, 
-  Eye, 
   Edit3, 
   Calendar as CalendarIcon,
-  Search,
-  CheckCircle2,
-  AlertCircle
+  Search
 } from 'lucide-react';
 
 interface CalendarProps {
@@ -184,7 +181,7 @@ const Calendar: React.FC<CalendarProps> = ({ posts, onEditPost }) => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
                       <Clock className="w-3 h-3 text-slate-400" />
-                      {post.publishAt ? new Date(post.publishAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'All Day'}
+                      {post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'All Day'}
                     </div>
                     <button 
                       onClick={() => onEditPost?.(post)}
