@@ -45,6 +45,36 @@ CREATE TABLE IF NOT EXISTS ag_social_media_content.projects (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS ag_social_media_content.project_configurations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES ag_social_media_content.projects(id) ON DELETE CASCADE,
+  products_services TEXT NOT NULL DEFAULT '',
+  unique_selling_points TEXT NOT NULL DEFAULT '',
+  service_areas TEXT NOT NULL DEFAULT '',
+  audience_age_group TEXT NOT NULL DEFAULT '',
+  audience_pain_points TEXT NOT NULL DEFAULT '',
+  audience_interests TEXT NOT NULL DEFAULT '',
+  customer_goals TEXT NOT NULL DEFAULT '',
+  customer_objections TEXT NOT NULL DEFAULT '',
+  writing_style TEXT NOT NULL DEFAULT 'Clear and concise',
+  emoji_preference TEXT NOT NULL DEFAULT 'Minimal',
+  hashtag_style TEXT NOT NULL DEFAULT 'Balanced broad and niche',
+  cta_style TEXT NOT NULL DEFAULT 'Soft CTA',
+  content_goal TEXT NOT NULL DEFAULT 'Awareness',
+  main_offer TEXT NOT NULL DEFAULT '',
+  current_campaign TEXT NOT NULL DEFAULT '',
+  promotion_details TEXT NOT NULL DEFAULT '',
+  important_keywords TEXT NOT NULL DEFAULT '',
+  words_to_avoid TEXT NOT NULL DEFAULT '',
+  competitor_reference_links TEXT NOT NULL DEFAULT '',
+  source_details TEXT NOT NULL DEFAULT '',
+  reference_materials TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(project_id)
+);
+
 CREATE TABLE IF NOT EXISTS ag_social_media_content.categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES ag_social_media_content.projects(id) ON DELETE CASCADE,
@@ -142,6 +172,7 @@ CREATE TABLE IF NOT EXISTS ag_social_media_content.analytics_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_social_projects_owner ON ag_social_media_content.projects(owner_id);
+CREATE INDEX IF NOT EXISTS idx_project_configurations_project ON ag_social_media_content.project_configurations(project_id);
 CREATE INDEX IF NOT EXISTS idx_social_categories_project ON ag_social_media_content.categories(project_id);
 CREATE INDEX IF NOT EXISTS idx_content_suggestions_project ON ag_social_media_content.content_suggestions(project_id);
 CREATE INDEX IF NOT EXISTS idx_content_suggestions_status ON ag_social_media_content.content_suggestions(status);
@@ -169,6 +200,8 @@ $$;
 
 DROP TRIGGER IF EXISTS tr_projects_updated_at ON ag_social_media_content.projects;
 CREATE TRIGGER tr_projects_updated_at BEFORE UPDATE ON ag_social_media_content.projects FOR EACH ROW EXECUTE FUNCTION ag_social_media_content.set_updated_at();
+DROP TRIGGER IF EXISTS tr_project_configurations_updated_at ON ag_social_media_content.project_configurations;
+CREATE TRIGGER tr_project_configurations_updated_at BEFORE UPDATE ON ag_social_media_content.project_configurations FOR EACH ROW EXECUTE FUNCTION ag_social_media_content.set_updated_at();
 DROP TRIGGER IF EXISTS tr_categories_updated_at ON ag_social_media_content.categories;
 CREATE TRIGGER tr_categories_updated_at BEFORE UPDATE ON ag_social_media_content.categories FOR EACH ROW EXECUTE FUNCTION ag_social_media_content.set_updated_at();
 DROP TRIGGER IF EXISTS tr_content_suggestions_updated_at ON ag_social_media_content.content_suggestions;
@@ -204,6 +237,7 @@ FROM ag_social_media_content.social_content_items
 GROUP BY project_id, DATE_TRUNC('day', created_at)::DATE;
 
 ALTER TABLE ag_social_media_content.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ag_social_media_content.project_configurations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ag_social_media_content.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ag_social_media_content.content_suggestions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ag_social_media_content.social_content_items ENABLE ROW LEVEL SECURITY;
@@ -215,6 +249,13 @@ DROP POLICY IF EXISTS "Authenticated manage own projects" ON ag_social_media_con
 DROP POLICY IF EXISTS "Internal MVP manage projects" ON ag_social_media_content.projects;
 CREATE POLICY "Internal MVP manage projects"
 ON ag_social_media_content.projects
+FOR ALL TO anon, authenticated
+USING (true)
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Internal MVP manage project configurations" ON ag_social_media_content.project_configurations;
+CREATE POLICY "Internal MVP manage project configurations"
+ON ag_social_media_content.project_configurations
 FOR ALL TO anon, authenticated
 USING (true)
 WITH CHECK (true);

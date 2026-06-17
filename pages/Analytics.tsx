@@ -60,14 +60,23 @@ const Analytics: React.FC<AnalyticsProps> = ({ project, posts }) => {
     return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [posts]);
 
+  const analyticsHelp: Record<string, string> = {
+    'Total Generated': 'All saved generated content for this project.',
+    Approved: 'Content approved and saved into the workspace.',
+    Rejected: 'Generated content marked as rejected.',
+    'Saved Content': 'Content currently saved for this project.',
+  };
+
   if (selectedPost) {
     return <SocialContentDetail post={selectedPost} allPosts={posts} onBack={() => setSelectedPostId(null)} onSelectPost={setSelectedPostId} />;
   }
 
-  const distributionBlock = (title: string, items: { label: string; count: number }[]) => (
+  const distributionBlock = (title: string, items: { label: string; count: number }[], help: string) => (
     <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-slate-800">{title}</h3>
+        <h3 className="font-bold text-slate-800 flex items-center gap-1.5">
+          {title}
+        </h3>
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Data</span>
       </div>
       <div className="space-y-3">
@@ -99,7 +108,6 @@ const Analytics: React.FC<AnalyticsProps> = ({ project, posts }) => {
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             {project.name} Analytics
-            <InfoPopover text="Review saved content totals and distributions." />
           </h2>
           <p className="text-slate-500">Review generated content, approvals, saved content, distribution, and trends.</p>
         </div>
@@ -116,18 +124,23 @@ const Analytics: React.FC<AnalyticsProps> = ({ project, posts }) => {
             </div>
             <div className="min-w-0 flex items-baseline justify-center gap-2 w-full">
               <div className="text-2xl font-black text-slate-900 leading-none">{metric.value}</div>
-              <div className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{metric.label}</div>
+              <div className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate flex items-center gap-1">
+                {metric.label}
+                <InfoPopover text={analyticsHelp[metric.label]} panelClassName="left-auto right-0 translate-x-0" />
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {distributionBlock('Platform Distribution', platformDistribution)}
-        {distributionBlock('Content Type Distribution', contentTypeDistribution)}
+        {distributionBlock('Platform Distribution', platformDistribution, 'Breakdown of saved content by social platform.')}
+        {distributionBlock('Content Type Distribution', contentTypeDistribution, 'Breakdown of saved content by selected content type.')}
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-800">Generation Trends</h3>
+            <h3 className="font-bold text-slate-800 flex items-center gap-1.5">
+              Generation Trends
+            </h3>
             <BarChart3 className="w-4 h-4 text-slate-400" />
           </div>
           <div className="space-y-2">
@@ -146,7 +159,9 @@ const Analytics: React.FC<AnalyticsProps> = ({ project, posts }) => {
       <section className="space-y-5 bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h3 className="text-xl font-black text-slate-800">Saved Content</h3>
+            <h3 className="text-xl font-black text-slate-800 flex items-center gap-1.5">
+              Saved Content
+            </h3>
             <p className="text-sm text-slate-500">Preview saved social media content for the selected project.</p>
           </div>
           <div className="relative">
@@ -157,20 +172,37 @@ const Analytics: React.FC<AnalyticsProps> = ({ project, posts }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {filteredPosts.map(post => (
-            <button key={post.id} type="button" onClick={() => setSelectedPostId(post.id)} className="group text-left bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden">
-              <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
-                <img src={post.image} alt={post.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg bg-slate-900/80 text-white">
+            <button key={post.id} type="button" onClick={() => setSelectedPostId(post.id)} className="group text-left bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 p-5">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1">
                   {post.platform}
+                  <InfoPopover text="Platform this content is for." />
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1">
+                  {post.contentType}
+                  <InfoPopover text="Specific format or asset type." />
                 </span>
               </div>
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">{post.contentType}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1"><Clock className="w-3 h-3" />{post.date}</span>
+              <h4 className="font-bold text-slate-800 line-clamp-2 min-h-[42px] group-hover:text-indigo-600 transition-colors">{post.title}</h4>
+              {post.hook && (
+                <div className="mt-3">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    Hook
+                    <InfoPopover text="Opening line meant to grab attention." />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 line-clamp-2 mt-1">{post.hook}</p>
                 </div>
-                <h4 className="font-bold text-slate-800 line-clamp-2 min-h-[42px] group-hover:text-indigo-600 transition-colors">{post.title}</h4>
-                <p className="text-xs text-slate-500 line-clamp-2 mt-3 leading-relaxed">{post.body || post.hook}</p>
+              )}
+              <p className="text-xs text-slate-500 line-clamp-3 mt-3 leading-relaxed">{post.body || post.videoScript || post.creativeDirection}</p>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 inline-flex items-center gap-1">
+                  {post.status}
+                  <InfoPopover text="Current content workflow status." panelClassName="left-auto right-0 translate-x-0" />
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {post.date}
+                </span>
               </div>
             </button>
           ))}

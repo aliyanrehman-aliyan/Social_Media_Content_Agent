@@ -6,6 +6,7 @@ import {
   Download,
   Edit2,
   Filter,
+  Lightbulb,
   LayoutGrid,
   List,
   Search,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Post } from '../types';
 import InfoPopover from '../components/InfoPopover';
+import { formatContentPackage, getAssetIdeaText } from '../contentPackage';
 
 interface PostsProps {
   posts: Post[];
@@ -35,26 +37,11 @@ const Posts: React.FC<PostsProps> = ({ posts, projectName, onDelete, onToggleSta
   });
 
   const copyPost = async (post: Post) => {
-    const text = [post.hook, post.body, post.cta, post.hashtags.join(' '), post.creativeDirection].filter(Boolean).join('\n\n');
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(formatContentPackage(post));
   };
 
   const downloadPost = (post: Post) => {
-    const text = [
-      `Platform: ${post.platform}`,
-      `Content type: ${post.contentType}`,
-      post.sourceType ? `Source type: ${post.sourceType}` : '',
-      `Title:\n${post.title}`,
-      post.hook ? `Hook:\n${post.hook}` : '',
-      post.body ? `Caption / Body:\n${post.body}` : '',
-      post.cta ? `CTA:\n${post.cta}` : '',
-      post.hashtags.length ? `Hashtags:\n${post.hashtags.join(' ')}` : '',
-      post.carouselOutline?.length ? `Carousel Outline:\n${post.carouselOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}` : '',
-      post.videoScript ? `Video Script:\n${post.videoScript}` : '',
-      post.sceneOutline?.length ? `Scene Outline:\n${post.sceneOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}` : '',
-      post.creativeDirection ? `Creative Direction / Image Description:\n${post.creativeDirection}` : '',
-      post.thumbnailPrompt ? `YouTube Thumbnail Prompt:\n${post.thumbnailPrompt}` : '',
-    ].filter(Boolean).join('\n\n');
+    const text = formatContentPackage(post);
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -103,7 +90,15 @@ const Posts: React.FC<PostsProps> = ({ posts, projectName, onDelete, onToggleSta
           {filteredPosts.map(post => (
             <div key={post.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden">
               <div className="relative aspect-video overflow-hidden bg-slate-100">
-                <img src={post.image} alt={post.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                {post.image ? (
+                  <img src={post.image} alt={post.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                ) : (
+                  <div className="h-full w-full p-5 flex flex-col justify-end bg-slate-50">
+                    <Lightbulb className="w-5 h-5 text-indigo-500 mb-2" />
+                    <div className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">Asset Idea</div>
+                    <p className="text-xs font-semibold text-slate-600 line-clamp-3">{getAssetIdeaText(post)}</p>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                   <div className="flex gap-2">
                     <button onClick={() => onEditPost?.(post)} className="p-2 bg-white/20 backdrop-blur-md hover:bg-white/40 rounded-lg text-white transition-colors">
@@ -161,7 +156,13 @@ const Posts: React.FC<PostsProps> = ({ posts, projectName, onDelete, onToggleSta
                 <tr key={post.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <img src={post.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                      {post.image ? (
+                        <img src={post.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <Lightbulb className="w-4 h-4" />
+                        </div>
+                      )}
                       <span className="font-semibold text-slate-800 truncate max-w-[240px]">{post.title}</span>
                     </div>
                   </td>

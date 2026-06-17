@@ -80,9 +80,35 @@ export interface Project {
   location: string;
   tags?: string[];
   settingsMetadata?: Record<string, unknown>;
+  configuration?: ProjectConfiguration;
   createdAt: string;
   apiBaseUrl?: string;
   apiKey?: string;
+}
+
+export interface ProjectConfiguration {
+  projectId?: string;
+  productsServices: string;
+  uniqueSellingPoints: string;
+  serviceAreas: string;
+  audienceAgeGroup: string;
+  audiencePainPoints: string;
+  audienceInterests: string;
+  customerGoals: string;
+  customerObjections: string;
+  writingStyle: string;
+  emojiPreference: string;
+  hashtagStyle: string;
+  ctaStyle: string;
+  contentGoal: string;
+  mainOffer: string;
+  currentCampaign: string;
+  promotionDetails: string;
+  importantKeywords: string;
+  wordsToAvoid: string;
+  competitorReferenceLinks: string;
+  sourceDetails: string;
+  referenceMaterials: string;
 }
 
 export interface Category {
@@ -107,4 +133,4 @@ export interface MediaAsset {
   usedInPosts: string[];
 }
 
-export type Tab = 'Projects' | 'Posts' | 'Calendar' | 'Editor' | 'Analytics' | 'Settings' | 'AutoGenerate';
+export type Tab = 'Projects' | 'Posts' | 'Calendar' | 'Editor' | 'Analytics' | 'Settings' | 'Demo' | 'AutoGenerate';

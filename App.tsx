@@ -1,28 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
-  Calendar as CalendarIcon,
   ChevronDown,
   FileText,
   FolderKanban,
   Globe,
   Loader2,
   LogOut,
+  Monitor,
   Plus,
   Settings as SettingsIcon,
   Sparkles
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
-import { ApprovalStatus, ContentStatus, Platform, Project, SocialContent, SocialContentType, Tab } from './types';
+import { ApprovalStatus, ContentStatus, Platform, Project, ProjectConfiguration, SocialContent, SocialContentType, Tab } from './types';
 import Analytics from './pages/Analytics';
 import AutoGenerate from './pages/AutoGenerate';
 import Calendar from './pages/Calendar';
+import Demo from './pages/Demo';
 import Editor from './pages/Editor';
 import Posts from './pages/Posts';
 import ProjectsPage from './pages/Projects';
 import Settings from './pages/Settings';
 import { isSourceType, sanitizeContentTypes, sanitizePlatforms } from './socialConfig';
-import InfoPopover from './components/InfoPopover';
 
 const normalizePath = (path: string) => path.replace(/\/+$/, '') || '/';
 
@@ -34,17 +34,17 @@ const getTabFromPath = (path: string): Tab => {
       return 'Analytics';
     case '/settings':
       return 'Settings';
+    case '/demo':
+      return 'Demo';
     case '/auto-generate':
     case '/customer-workspace/auto-generate':
-      return 'AutoGenerate';
     case '/customer-workspace/calendar':
-      return 'Calendar';
     case '/customer-workspace':
     case '/customer-workspace/posts':
     case '/':
-      return 'Posts';
+      return 'AutoGenerate';
     default:
-      return 'Posts';
+      return 'AutoGenerate';
   }
 };
 
@@ -56,14 +56,15 @@ const getRouteForTab = (tab: Tab) => {
       return '/analytics';
     case 'Settings':
       return '/settings';
+    case 'Demo':
+      return '/demo';
     case 'AutoGenerate':
       return '/customer-workspace/auto-generate';
     case 'Calendar':
-      return '/customer-workspace/calendar';
     case 'Posts':
     case 'Editor':
     default:
-      return '/customer-workspace/posts';
+      return '/customer-workspace/auto-generate';
   }
 };
 
@@ -77,7 +78,100 @@ const toTitleCaseStatus = <T extends string>(value: string | null | undefined, f
 
 const toDbValue = (value: string) => value.toLowerCase().replace(/\s+/g, '_');
 
-const mapProject = (p: any): Project => {
+const normalizeDbKey = (value: string | null | undefined) =>
+  String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+const PLATFORM_FROM_DB: Record<string, Platform> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  tik_tok: 'TikTok',
+  youtube: 'YouTube',
+  youtube_shorts: 'YouTube',
+  shorts: 'YouTube',
+};
+
+const CONTENT_TYPE_FROM_DB: Record<string, SocialContentType> = {
+  caption: 'Caption',
+  image_post: 'Image Post',
+  carousel: 'Carousel',
+  carousel_outline: 'Carousel',
+  reel_script: 'Reel Script',
+  story_idea: 'Story Idea',
+  hashtags: 'Hashtags',
+  caption_post: 'Caption Post',
+  link_post: 'Link Post',
+  short_video_script: 'Short Video Script',
+  hook: 'Hook',
+  scene_outline: 'Scene Outline',
+  shorts_script: 'Shorts Script',
+  video_title: 'Video Title',
+  description: 'Description',
+  thumbnail_prompt: 'Thumbnail Prompt',
+};
+
+const mapPlatformValue = (value: string | null | undefined): Platform =>
+  PLATFORM_FROM_DB[normalizeDbKey(value)] || 'Instagram';
+
+const mapContentTypeValue = (value: string | null | undefined, platform: Platform): SocialContentType => {
+  const mapped = CONTENT_TYPE_FROM_DB[normalizeDbKey(value)];
+  return sanitizeContentTypes(mapped ? [mapped] : [], [platform])[0];
+};
+
+const mapConfiguration = (row: any): ProjectConfiguration | undefined => {
+  if (!row) return undefined;
+  return {
+    projectId: row.project_id,
+    productsServices: row.products_services || '',
+    uniqueSellingPoints: row.unique_selling_points || '',
+    serviceAreas: row.service_areas || '',
+    audienceAgeGroup: row.audience_age_group || '',
+    audiencePainPoints: row.audience_pain_points || '',
+    audienceInterests: row.audience_interests || '',
+    customerGoals: row.customer_goals || '',
+    customerObjections: row.customer_objections || '',
+    writingStyle: row.writing_style || 'Clear and concise',
+    emojiPreference: row.emoji_preference || 'Minimal',
+    hashtagStyle: row.hashtag_style || 'Balanced broad and niche',
+    ctaStyle: row.cta_style || 'Soft CTA',
+    contentGoal: row.content_goal || 'Awareness',
+    mainOffer: row.main_offer || '',
+    currentCampaign: row.current_campaign || '',
+    promotionDetails: row.promotion_details || '',
+    importantKeywords: row.important_keywords || '',
+    wordsToAvoid: row.words_to_avoid || '',
+    competitorReferenceLinks: row.competitor_reference_links || '',
+    sourceDetails: row.source_details || '',
+    referenceMaterials: row.reference_materials || '',
+  };
+};
+
+const configurationToMetadata = (configuration?: ProjectConfiguration) => configuration ? {
+  products_services: configuration.productsServices,
+  unique_selling_points: configuration.uniqueSellingPoints,
+  service_areas: configuration.serviceAreas,
+  audience_age_group: configuration.audienceAgeGroup,
+  audience_pain_points: configuration.audiencePainPoints,
+  audience_interests: configuration.audienceInterests,
+  customer_goals: configuration.customerGoals,
+  customer_objections: configuration.customerObjections,
+  writing_style: configuration.writingStyle,
+  emoji_preference: configuration.emojiPreference,
+  hashtag_style: configuration.hashtagStyle,
+  cta_style: configuration.ctaStyle,
+  content_goal: configuration.contentGoal,
+  main_offer: configuration.mainOffer,
+  current_campaign: configuration.currentCampaign,
+  promotion_details: configuration.promotionDetails,
+  important_keywords: configuration.importantKeywords,
+  words_to_avoid: configuration.wordsToAvoid,
+  competitor_reference_links: configuration.competitorReferenceLinks,
+  source_details: configuration.sourceDetails,
+  reference_materials: configuration.referenceMaterials,
+} : {};
+
+const mapProject = (p: any, configurationRow?: any): Project => {
+  const configuration = mapConfiguration(configurationRow);
   const settingsMetadata = p.settings_metadata && typeof p.settings_metadata === 'object' ? p.settings_metadata : {};
   const platforms = sanitizePlatforms(p.platforms);
   const contentTypes = sanitizeContentTypes(p.content_types, platforms);
@@ -99,15 +193,16 @@ const mapProject = (p: any): Project => {
     publishingMode: p.publishing_mode === 'auto_publish' ? 'auto_publish' : 'manual',
     location: p.location || '',
     tags: Array.isArray(p.tags) ? p.tags : [],
-    settingsMetadata,
+    settingsMetadata: { ...settingsMetadata, ...configurationToMetadata(configuration) },
+    configuration,
     createdAt: p.created_at,
   };
 };
 
 const mapContent = (p: any): SocialContent => {
   const categoryIds = p.category_ids || [];
-  const platform = sanitizePlatforms([toTitleCaseStatus<Platform>(String(p.platform || ''), 'Instagram')])[0];
-  const contentType = sanitizeContentTypes([toTitleCaseStatus<SocialContentType>(p.content_type, 'Caption')], [platform])[0];
+  const platform = mapPlatformValue(p.platform);
+  const contentType = mapContentTypeValue(p.content_type, platform);
 
   return {
     id: p.id,
@@ -133,7 +228,7 @@ const mapContent = (p: any): SocialContent => {
     author: 'Admin',
     date: new Intl.DateTimeFormat('en-CA').format(new Date(p.scheduled_at || p.created_at)),
     scheduledAt: p.scheduled_at,
-    image: p.image_url || 'https://picsum.photos/seed/social-content/800/400',
+    image: p.image_url || '',
     imageProvider: p.image_provider || '',
     imagePrompt: p.image_prompt || '',
     imageUrl: p.image_url || '',
@@ -190,7 +285,19 @@ const App: React.FC = () => {
       return [];
     }
 
-    const mapped = (data || []).map(mapProject);
+    const projectIds = (data || []).map(project => project.id);
+    let configurations: any[] = [];
+    if (projectIds.length) {
+      const { data: configData, error: configError } = await supabase
+        .from('project_configurations')
+        .select('*')
+        .in('project_id', projectIds);
+      if (configError) console.error('Project configuration fetch error:', configError);
+      configurations = configData || [];
+    }
+
+    const configMap = new Map(configurations.map(config => [config.project_id, config]));
+    const mapped = (data || []).map(project => mapProject(project, configMap.get(project.id)));
     setProjects(mapped);
 
     const nextSelectedId = preferredSelectedProjectId || null;
@@ -225,19 +332,18 @@ const App: React.FC = () => {
   const activeProject = useMemo(() => projects.find(project => project.id === selectedProjectId) || null, [projects, selectedProjectId]);
 
   const sidebarItems = [
-    { id: 'Posts', icon: FileText, label: 'Customer Workspace' },
+    { id: 'AutoGenerate', icon: FileText, label: 'Customer Workspace' },
     { id: 'Analytics', icon: BarChart3, label: 'Analytics' },
     { id: 'Settings', icon: SettingsIcon, label: 'Settings' },
+    { id: 'Demo', icon: Monitor, label: 'Demo' },
   ];
 
   const workspaceItems = [
-    { id: 'Posts', icon: FileText, label: 'Posts' },
-    { id: 'Calendar', icon: CalendarIcon, label: 'Calendar' },
     { id: 'AutoGenerate', icon: Sparkles, label: 'Auto Generate' },
   ];
 
   const isWorkspaceTab = (tab: Tab) =>
-    tab === 'Posts' || tab === 'Calendar' || tab === 'AutoGenerate' || tab === 'Editor';
+    tab === 'AutoGenerate';
 
   const navigateTo = (tab: Tab, route = getRouteForTab(tab)) => {
     setActiveTab(tab);
@@ -260,33 +366,75 @@ const App: React.FC = () => {
     publishing_mode: project.publishingMode || 'manual',
     location: project.location || null,
     tags: project.tags || [],
-    settings_metadata: {
-      ...(project.settingsMetadata || {}),
-      source_type: project.sourceType || 'General Topic',
-    },
+      settings_metadata: {
+        ...(project.settingsMetadata || {}),
+        ...configurationToMetadata(project.configuration),
+        source_type: project.sourceType || 'General Topic',
+      },
   });
+
+  const configurationPayload = (projectId: string, project: Project) => {
+    const metadata = {
+      ...(project.settingsMetadata || {}),
+      ...configurationToMetadata(project.configuration),
+    };
+    return {
+      project_id: projectId,
+      products_services: String(metadata.products_services || ''),
+      unique_selling_points: String(metadata.unique_selling_points || ''),
+      service_areas: String(metadata.service_areas || ''),
+      audience_age_group: String(metadata.audience_age_group || ''),
+      audience_pain_points: String(metadata.audience_pain_points || ''),
+      audience_interests: String(metadata.audience_interests || ''),
+      customer_goals: String(metadata.customer_goals || ''),
+      customer_objections: String(metadata.customer_objections || ''),
+      writing_style: String(metadata.writing_style || 'Clear and concise'),
+      emoji_preference: String(metadata.emoji_preference || 'Minimal'),
+      hashtag_style: String(metadata.hashtag_style || 'Balanced broad and niche'),
+      cta_style: String(metadata.cta_style || 'Soft CTA'),
+      content_goal: String(metadata.content_goal || 'Awareness'),
+      main_offer: String(metadata.main_offer || ''),
+      current_campaign: String(metadata.current_campaign || ''),
+      promotion_details: String(metadata.promotion_details || ''),
+      important_keywords: String(metadata.important_keywords || ''),
+      words_to_avoid: String(metadata.words_to_avoid || ''),
+      competitor_reference_links: String(metadata.competitor_reference_links || ''),
+      source_details: String(metadata.source_details || ''),
+      reference_materials: String(metadata.reference_materials || ''),
+    };
+  };
 
   const handleAddProject = async (newProj: Project, options: { navigateAfterCreate?: boolean } = { navigateAfterCreate: true }) => {
     const { data, error } = await supabase.from('projects').insert(projectPayload(newProj)).select().single();
     if (error) return { error };
 
+    const { error: configError } = await supabase
+      .from('project_configurations')
+      .upsert(configurationPayload(data.id, newProj), { onConflict: 'project_id' });
+    if (configError) return { error: configError };
+
     await fetchProjects(data.id);
     setSelectedProjectId(data.id);
-    if (options.navigateAfterCreate) navigateTo('Posts', '/customer-workspace/posts');
-    return { data: mapProject(data) };
+    if (options.navigateAfterCreate) navigateTo('AutoGenerate', '/customer-workspace/auto-generate');
+    return { data: mapProject(data, configurationPayload(data.id, newProj)) };
   };
 
   const handleUpdateProject = async (updated: Project) => {
     const { data, error } = await supabase.from('projects').update(projectPayload(updated)).eq('id', updated.id).select().single();
     if (error) return { error };
 
+    const { error: configError } = await supabase
+      .from('project_configurations')
+      .upsert(configurationPayload(updated.id, updated), { onConflict: 'project_id' });
+    if (configError) return { error: configError };
+
     await fetchProjects(updated.id || selectedProjectId);
-    return { data: data ? mapProject(data) : undefined };
+    return { data: data ? mapProject(data, configurationPayload(updated.id, updated)) : undefined };
   };
 
   const handleClearProjectSelection = () => {
     setSelectedProjectId(null);
-    if (activeTab === 'Editor') navigateTo('Posts', '/customer-workspace/posts');
+    if (activeTab === 'Editor') navigateTo('AutoGenerate', '/customer-workspace/auto-generate');
   };
 
   const handleStartNewProject = () => {
@@ -336,12 +484,12 @@ const App: React.FC = () => {
     }
 
     await fetchProjectData(selectedProjectId);
-    navigateTo('Posts', '/customer-workspace/posts');
+    navigateTo('AutoGenerate', '/customer-workspace/auto-generate');
   };
 
   const handleClearWorkspace = () => {
     setSelectedProjectId(null);
-    navigateTo('Posts', '/customer-workspace');
+    navigateTo('AutoGenerate', '/customer-workspace/auto-generate');
   };
 
   if (loading) {
@@ -377,7 +525,7 @@ const App: React.FC = () => {
   );
 
   const renderContent = () => {
-    if (!activeProject && activeTab !== 'Projects' && activeTab !== 'Settings') {
+    if (!activeProject && activeTab !== 'Projects' && activeTab !== 'Settings' && activeTab !== 'Demo') {
       return renderEmptyProjectState();
     }
 
@@ -385,17 +533,19 @@ const App: React.FC = () => {
       case 'Posts':
         return <Posts posts={posts} projectName={activeProject?.name || ''} onDelete={async (id) => { if (!selectedProjectId) return; await supabase.from('social_content_items').delete().eq('id', id).eq('project_id', selectedProjectId); fetchProjectData(selectedProjectId); }} onToggleStatus={async (id) => { if (!selectedProjectId) return; const p = posts.find(item => item.id === id); await supabase.from('social_content_items').update({ status: p?.status === 'Published' ? 'draft' : 'published' }).eq('id', id).eq('project_id', selectedProjectId); fetchProjectData(selectedProjectId); }} onCreatePost={() => { setEditingPost(null); navigateTo('Editor', '/customer-workspace/posts'); }} onEditPost={(p) => { setEditingPost(p); navigateTo('Editor', '/customer-workspace/posts'); }} />;
       case 'Projects':
-        return <ProjectsPage projects={projects} activeProjectId={selectedProjectId || ''} onSelect={(id) => { setSelectedProjectId(id); navigateTo('Posts', '/customer-workspace/posts'); }} onAdd={handleAddProject} onUpdate={handleUpdateProject} onCreateNew={handleStartNewProject} />;
+        return <ProjectsPage projects={projects} activeProjectId={selectedProjectId || ''} onSelect={(id) => { setSelectedProjectId(id); navigateTo('AutoGenerate', '/customer-workspace/auto-generate'); }} onAdd={handleAddProject} onUpdate={handleUpdateProject} onCreateNew={handleStartNewProject} />;
       case 'Analytics':
         return <Analytics project={activeProject!} posts={posts} />;
       case 'Settings':
         return <Settings project={activeProject} onUpdate={handleUpdateProject} onCreate={(project) => handleAddProject(project, { navigateAfterCreate: false })} />;
+      case 'Demo':
+        return <Demo />;
       case 'AutoGenerate':
         return <AutoGenerate project={activeProject} onContentSaved={() => selectedProjectId && fetchProjectData(selectedProjectId)} />;
       case 'Calendar':
         return <Calendar posts={posts} onEditPost={(p) => { setEditingPost(p); navigateTo('Editor', '/customer-workspace/posts'); }} />;
       case 'Editor':
-        return <Editor post={editingPost} project={activeProject!} onSave={handleSavePost} onCancel={() => navigateTo('Posts', '/customer-workspace/posts')} />;
+        return <Editor post={editingPost} project={activeProject!} onSave={handleSavePost} onCancel={() => navigateTo('AutoGenerate', '/customer-workspace/auto-generate')} />;
       default:
         return <div className="p-20 text-center">Coming Soon</div>;
     }
@@ -412,22 +562,18 @@ const App: React.FC = () => {
           {sidebarItems.map((item) => (
             <div key={item.id} className="space-y-1">
               <button
-                onClick={() => navigateTo(item.id as Tab, item.id === 'Posts' ? '/customer-workspace' : getRouteForTab(item.id as Tab))}
+                onClick={() => navigateTo(item.id as Tab, getRouteForTab(item.id as Tab))}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  (item.id === 'Posts' ? isWorkspaceTab(activeTab) : activeTab === item.id)
+                  (item.id === 'AutoGenerate' ? isWorkspaceTab(activeTab) : activeTab === item.id)
                     ? 'bg-indigo-600 text-white'
                     : 'hover:bg-slate-800 hover:text-white'
                 }`}
               >
                 <item.icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{item.label}</span>
-                <InfoPopover
-                  text={item.id === 'Posts' ? 'Your workspace for social posts and generation.' : item.id === 'Analytics' ? 'Review saved content performance summaries.' : 'Manage business and content settings.'}
-                  panelClassName="left-auto right-0 translate-x-0"
-                />
               </button>
 
-              {item.id === 'Posts' && (
+              {item.id === 'AutoGenerate' && (
                 <div className="ml-4 pl-3 border-l border-slate-700/70 space-y-1">
                   {workspaceItems.map((subItem) => (
                     <button
@@ -441,10 +587,6 @@ const App: React.FC = () => {
                     >
                       <subItem.icon className="w-4 h-4" />
                       <span className="flex-1 text-left">{subItem.label}</span>
-                      <InfoPopover
-                        text={subItem.id === 'Posts' ? 'Your content library for saved posts.' : subItem.id === 'Calendar' ? 'View scheduled content by date.' : 'Generate content from project settings.'}
-                        panelClassName="left-auto right-0 translate-x-0"
-                      />
                     </button>
                   ))}
                 </div>
@@ -486,10 +628,7 @@ const App: React.FC = () => {
             </button>
             <span className="text-slate-300">|</span>
             <div className="text-xs text-slate-500 uppercase tracking-widest font-bold">
-              <span className="inline-flex items-center gap-1.5">
-                {isWorkspaceTab(activeTab) ? 'Customer Workspace' : activeTab === 'AutoGenerate' ? 'Auto Generate' : activeTab}
-                <InfoPopover text="Shows where you are in the app." />
-              </span>
+              {isWorkspaceTab(activeTab) ? 'Customer Workspace' : activeTab}
             </div>
           </div>
           <div className="flex items-center gap-4">

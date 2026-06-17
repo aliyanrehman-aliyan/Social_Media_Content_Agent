@@ -47,7 +47,7 @@ const Editor: React.FC<EditorProps> = ({ post, project, onSave, onCancel }) => {
       author: 'Admin',
       date: new Intl.DateTimeFormat('en-CA').format(new Date()),
       scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-      image: imageUrl.trim() || post?.image || 'https://picsum.photos/seed/social-content/800/400',
+      image: imageUrl.trim() || post?.image || '',
       imageUrl: imageUrl.trim(),
       tags: post?.tags || [],
     };

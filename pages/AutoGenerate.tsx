@@ -6,14 +6,15 @@ import {
   Download,
   Loader2,
   RefreshCcw,
-  Image as ImageIcon,
+  Lightbulb,
   Sparkles,
   X
 } from 'lucide-react';
 import { supabase, supabaseSchema } from '../supabaseClient';
 import { ApprovalStatus, ContentStatus, Platform, Project, SocialContentType, SourceType } from '../types';
-import { sanitizePlatforms, toPlatformContentType } from '../socialConfig';
+import { getContentTypesForPlatforms, sanitizePlatforms, toPlatformContentType } from '../socialConfig';
 import InfoPopover from '../components/InfoPopover';
+import { formatContentPackage, getAssetIdeaText } from '../contentPackage';
 
 type ItemState = ApprovalStatus;
 
@@ -68,6 +69,7 @@ const triggerTextDownload = (text: string, filename: string) => {
 
 const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) => {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | ''>('');
+  const [selectedContentTypes, setSelectedContentTypes] = useState<SocialContentType[]>([]);
   const [audienceOverride, setAudienceOverride] = useState('');
   const [campaignOverride, setCampaignOverride] = useState('');
   const [items, setItems] = useState<GeneratedSocialItem[]>([]);
@@ -79,6 +81,13 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const platformOptions = useMemo(() => sanitizePlatforms(project?.platforms, []), [project?.platforms]);
+  const contentTypeOptions = useMemo(() => {
+    if (!project || !selectedPlatform) return [];
+    const platformTypes = getContentTypesForPlatforms([selectedPlatform]);
+    const projectTypes = project.contentTypes || [];
+    const enabledTypes = projectTypes.filter(type => platformTypes.includes(type));
+    return enabledTypes.length ? enabledTypes : platformTypes;
+  }, [project, selectedPlatform]);
 
   useEffect(() => {
     setItems([]);
@@ -89,13 +98,14 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
     });
   }, [project?.id, platformOptions]);
 
+  useEffect(() => {
+    setSelectedContentTypes(current => {
+      const nextSelected = current.filter(type => contentTypeOptions.includes(type));
+      return nextSelected.length ? nextSelected : contentTypeOptions.slice(0, 1);
+    });
+  }, [contentTypeOptions]);
+
   const sourceType = project?.sourceType || 'General Topic';
-  const selectedContentTypes = useMemo(() => {
-    if (!project || !selectedPlatform) return [];
-    const projectTypes = project.contentTypes || [];
-    const validTypes = projectTypes.filter(type => type === toPlatformContentType(selectedPlatform, type));
-    return validTypes.length ? validTypes : [toPlatformContentType(selectedPlatform)];
-  }, [project, selectedPlatform]);
 
   const context = useMemo(() => ({
     businessName: project?.businessName || project?.name || '',
@@ -143,10 +153,14 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
   const normalizeItems = (rawItems: any[], forcedPlatform?: Platform): GeneratedSocialItem[] =>
     rawItems.map(item => {
       const platform = forcedPlatform || toTitleCase<Platform>(item.platform, platformOptions[0] || 'Instagram');
-      const contentType = selectedContentTypes.includes(item.contentType || item.content_type)
-        ? item.contentType || item.content_type
-        : toPlatformContentType(platform, item.contentType || item.content_type);
-      return {
+      const rawContentType = item.contentType || item.content_type;
+      const platformContentType = toPlatformContentType(platform, rawContentType);
+      const contentType = selectedContentTypes.includes(rawContentType)
+        ? rawContentType
+        : selectedContentTypes.includes(platformContentType)
+          ? platformContentType
+          : selectedContentTypes[0] || platformContentType;
+      const normalized = {
         id: item.id || makeId(),
         title: String(item.title || `${platform} ${contentType}`).trim(),
         platform,
@@ -164,12 +178,16 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
         status: 'Draft' as ContentStatus,
         approvalStatus: 'Pending' as ItemState,
       };
+      return {
+        ...normalized,
+        creativeDirection: normalized.creativeDirection || getAssetIdeaText(normalized),
+      };
     }).filter(item => item.title && (item.body || item.hook || item.videoScript || item.carouselOutline?.length || item.sceneOutline?.length || item.creativeDirection || item.thumbnailPrompt));
 
   const generateContent = async () => {
     if (!project?.id) return;
-    if (!selectedPlatform) {
-      setErrorMsg('Add at least one supported platform in Settings before generating content.');
+    if (!selectedPlatform || selectedContentTypes.length === 0) {
+      setErrorMsg('Choose a supported platform and at least one content type before generating content.');
       return;
     }
 
@@ -192,6 +210,8 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
     setApprovingId(item.id);
 
     try {
+      const assetIdea = getAssetIdeaText(item);
+
       const { error } = await supabase
         .from('social_content_items')
         .insert({
@@ -209,7 +229,7 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
           approval_status: 'approved',
           scheduled_at: item.scheduledAt || null,
           image_provider: 'creative_direction',
-          image_prompt: item.creativeDirection || item.thumbnailPrompt || null,
+          image_prompt: assetIdea || null,
           image_url: null,
           generation_metadata: {
             source: 'auto-generate-social-content',
@@ -218,7 +238,7 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
             selected_platform: item.platform,
             content_type: item.contentType,
             scene_outline: item.sceneOutline || [],
-            creative_direction: item.creativeDirection || '',
+            creative_direction: assetIdea,
             thumbnail_prompt: item.thumbnailPrompt || '',
           },
           publishing_metadata: {},
@@ -262,21 +282,7 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
     }
   };
 
-  const packageText = (item: GeneratedSocialItem) => [
-    `Platform: ${item.platform}`,
-    `Content type: ${item.contentType}`,
-    `Source type: ${item.sourceType}`,
-    `Title:\n${item.title}`,
-    item.hook ? `Hook:\n${item.hook}` : '',
-    item.body ? `Caption / Body:\n${item.body}` : '',
-    item.cta ? `CTA:\n${item.cta}` : '',
-    item.hashtags.length ? `Hashtags:\n${item.hashtags.join(' ')}` : '',
-    item.carouselOutline?.length ? `Carousel Outline:\n${item.carouselOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}` : '',
-    item.videoScript ? `Video Script:\n${item.videoScript}` : '',
-    item.sceneOutline?.length ? `Scene Outline:\n${item.sceneOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}` : '',
-    item.creativeDirection ? `Creative Direction / Image Description:\n${item.creativeDirection}` : '',
-    item.thumbnailPrompt ? `YouTube Thumbnail Prompt:\n${item.thumbnailPrompt}` : '',
-  ].filter(Boolean).join('\n\n');
+  const packageText = (item: GeneratedSocialItem) => formatContentPackage(item);
 
   const setNotice = (id: string, message: string) => {
     setCardNotice(current => ({ ...current, [id]: message }));
@@ -299,23 +305,31 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
     setNotice(item.id, 'Text package downloaded.');
   };
 
-  const createCreativeDirection = (item: GeneratedSocialItem) => {
+  const createAssetIdea = async (item: GeneratedSocialItem) => {
+    if (!project?.id || !selectedPlatform) return;
+    setErrorMsg(null);
     setDirectingId(item.id);
-    const fallback = [
-      `Visual concept: ${item.title}`,
-      `Background style: clean ${item.platform} layout with brand-safe contrast.`,
-      `Subject/object idea: show the main offer, topic, or customer benefit clearly.`,
-      `Text overlay idea: use the hook as a short headline.`,
-      `Mood/style: ${project?.tone || 'Professional'} and native to ${item.platform}.`,
-      item.carouselOutline?.length ? `Carousel visual direction: ${item.carouselOutline.map((line, index) => `Slide ${index + 1}: ${line}`).join(' | ')}` : '',
-      item.platform === 'YouTube' ? `Thumbnail concept: bold subject, simple background, clear benefit-led title text.` : '',
-    ].filter(Boolean).join('\n');
 
-    window.setTimeout(() => {
-      setItems(list => list.map(current => current.id === item.id ? { ...current, creativeDirection: current.creativeDirection || fallback } : current));
+    try {
+      const data = await invokeAutoGenerate({
+        action: 'generate_asset_idea',
+        item
+      });
+      const assetIdea = String(data?.assetIdea || data?.creativeDirection || '').trim();
+      const thumbnailPrompt = String(data?.thumbnailPrompt || '').trim();
+      if (!assetIdea && !thumbnailPrompt) throw new Error('No asset idea was returned.');
+
+      setItems(list => list.map(current => current.id === item.id ? {
+        ...current,
+        creativeDirection: assetIdea || current.creativeDirection,
+        thumbnailPrompt: thumbnailPrompt || current.thumbnailPrompt,
+      } : current));
+      setNotice(item.id, 'Asset idea generated.');
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'Failed to generate asset idea.');
+    } finally {
       setDirectingId(null);
-      setNotice(item.id, 'Creative direction added.');
-    }, 150);
+    }
   };
 
   if (!project) {
@@ -336,9 +350,8 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
             Auto Generate
-            <InfoPopover text="Generate content from the selected project settings." />
           </h2>
-          <p className="text-sm text-slate-500">Generate platform-ready captions, hooks, hashtags, outlines, ideas, scripts, and creative direction.</p>
+          <p className="text-sm text-slate-500">Generate platform-ready captions, hooks, hashtags, outlines, scripts, and asset ideas.</p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-500">
           <span className="px-2 py-1 rounded-lg bg-white border border-slate-100">{context.industry || 'No industry'}</span>
@@ -349,7 +362,7 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
       </div>
 
       <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <label className={labelClass}>Generate For <InfoPopover text="Only platforms selected in Settings appear here." /></label>
             <select className={`${inputClass} appearance-none`} value={selectedPlatform} onChange={event => setSelectedPlatform(event.target.value as Platform)}>
@@ -359,6 +372,27 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
                 platformOptions.map(option => <option key={option}>{option}</option>)
               )}
             </select>
+          </div>
+          <div className="space-y-1">
+            <label className={labelClass}>Content Types <InfoPopover text="Choose one or more asset or post types for this run." /></label>
+            <div className="min-h-[32px] max-h-[72px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 custom-scrollbar">
+              {contentTypeOptions.length === 0 ? (
+                <div className="px-2 py-1 text-[10px] font-bold text-slate-400">No content types configured</div>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {contentTypeOptions.map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setSelectedContentTypes(current => current.includes(option) ? current.filter(type => type !== option) : [...current, option])}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-colors ${selectedContentTypes.includes(option) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <label className={labelClass}>Audience Override <InfoPopover text="Temporarily focus this generation on a specific audience." /></label>
@@ -381,13 +415,12 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
       <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm min-h-[520px]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">Generated Content <InfoPopover text="Review AI output before saving it to posts." /></h3>
+            <h3 className="text-sm font-black text-slate-900">Generated Content</h3>
             <p className="text-xs text-slate-500">OpenAI runs through the `auto-generate-social-content` Edge Function.</p>
           </div>
-          <button type="button" onClick={generateContent} disabled={isGenerating || !selectedPlatform} className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-100">
+          <button type="button" onClick={generateContent} disabled={isGenerating || !selectedPlatform || selectedContentTypes.length === 0} className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-100">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             Generate
-            <InfoPopover text="Create a new batch from project settings." panelClassName="left-auto right-0 translate-x-0" />
           </button>
         </div>
 
@@ -410,9 +443,15 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
                   <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[9px] font-black uppercase">{item.sourceType}</span>
                 </div>
                 {item.hook && <p className="text-[11px] text-slate-700 mt-2 font-bold">{item.hook}</p>}
-                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed whitespace-pre-line">{item.body || item.videoScript}</p>
-                {item.carouselOutline?.length ? <p className="text-[10px] text-slate-500 mt-2">{item.carouselOutline.join(' / ')}</p> : null}
-                {item.sceneOutline?.length ? <p className="text-[10px] text-slate-500 mt-2">{item.sceneOutline.join(' / ')}</p> : null}
+                {item.body && <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed whitespace-pre-line">{item.body}</p>}
+                {item.videoScript && (
+                  <div className="mt-2 rounded-xl border border-slate-100 bg-white p-2.5">
+                    <p className="text-[10px] font-black text-slate-600">Video Script</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-line">{item.videoScript}</p>
+                  </div>
+                )}
+                {item.carouselOutline?.length ? <p className="text-[10px] text-slate-500 mt-2 whitespace-pre-line">{item.carouselOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}</p> : null}
+                {item.sceneOutline?.length ? <p className="text-[10px] text-slate-500 mt-2 whitespace-pre-line">{item.sceneOutline.map((line, index) => `${index + 1}. ${line}`).join('\n')}</p> : null}
                 {item.cta && <p className="text-[10px] text-slate-600 mt-2 font-bold">CTA: {item.cta}</p>}
                 {item.hashtags.length > 0 && <p className="text-[10px] text-indigo-600 mt-2">{item.hashtags.join(' ')}</p>}
 
@@ -420,18 +459,18 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
                   <div className="p-3 flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                        <ImageIcon className="w-4 h-4" />
+                        <Lightbulb className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black text-slate-600">Creative Direction</p>
-                        <p className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-line line-clamp-4">
-                          {item.creativeDirection || item.thumbnailPrompt || 'No creative direction added yet.'}
+                        <p className="text-[10px] font-black text-slate-600">Asset Idea</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto pr-1 custom-scrollbar">
+                          {getAssetIdeaText(item)}
                         </p>
                       </div>
                     </div>
-                    <button type="button" onClick={() => createCreativeDirection(item)} disabled={directingId === item.id} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[10px] font-black hover:bg-slate-100 disabled:opacity-50 flex items-center gap-1">
-                      {directingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
-                      Creative Direction
+                    <button type="button" onClick={() => createAssetIdea(item)} disabled={directingId === item.id} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[10px] font-black hover:bg-slate-100 disabled:opacity-50 flex items-center gap-1">
+                      {directingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
+                      Regenerate Asset Idea
                     </button>
                   </div>
                 </div>
@@ -442,31 +481,33 @@ const AutoGenerate: React.FC<AutoGenerateProps> = ({ project, onContentSaved }) 
                   </div>
                 )}
 
+                {item.thumbnailPrompt && (
+                  <div className="mt-2 rounded-xl border border-slate-100 bg-white p-3">
+                    <p className="text-[10px] font-black text-slate-600">Thumbnail Prompt</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-line">{item.thumbnailPrompt}</p>
+                  </div>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => approveItem(item)} disabled={approvingId === item.id} className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black hover:bg-emerald-100 disabled:opacity-50 flex items-center gap-1">
                     {approvingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     Approve
-                    <InfoPopover text="Save this content to Posts." />
                   </button>
                   <button type="button" onClick={() => rejectItem(item.id)} className="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black hover:bg-rose-100 flex items-center gap-1">
                     <X className="w-3.5 h-3.5" />
                     Reject
-                    <InfoPopover text="Remove this generated item." />
                   </button>
                   <button type="button" onClick={() => replaceItem(item.id)} disabled={replacingId === item.id} className="px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-700 text-[10px] font-black hover:bg-slate-100 disabled:opacity-50 flex items-center gap-1">
                     {replacingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
                     Replace
-                    <InfoPopover text="Ask for a new version." />
                   </button>
                   <button type="button" onClick={() => copyItem(item)} className="px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-700 text-[10px] font-black hover:bg-slate-100 flex items-center gap-1">
                     <Copy className="w-3.5 h-3.5" />
                     Copy
-                    <InfoPopover text="Copy the complete text package." />
                   </button>
                   <button type="button" onClick={() => downloadItem(item)} className="px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-700 text-[10px] font-black hover:bg-slate-100 flex items-center gap-1">
                     <Download className="w-3.5 h-3.5" />
                     Download
-                    <InfoPopover text="Download the complete text package." />
                   </button>
                 </div>
               </div>
